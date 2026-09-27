@@ -1,6 +1,6 @@
 import socket
 
-import Lab2.client as client
+import Lab1.client as client
 
 HOST = "127.0.0.1"
 PORT = 12345

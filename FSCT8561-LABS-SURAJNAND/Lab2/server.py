@@ -1,123 +1,93 @@
 import socket
-
-import Lab2.client as client
+import select
 
 HOST = "127.0.0.1"
-PORT = 12345
+PORTS = [22, 53, 80]
 
-server_socket = socket.socket(
-    socket.AF_INET,
-    socket.SOCK_STREAM
-)
+server_sockets = []
 
-server_socket.bind((HOST, PORT))
-server_socket.listen(1)
+try:
+    # Create a listening socket for each test port
+    for port in PORTS:
 
-print("Server is waiting for a connection...")
+        server_socket = socket.socket(
+            socket.AF_INET,
+            socket.SOCK_STREAM
+        )
 
-client_socket, client_address = server_socket.accept()
+        server_socket.setsockopt(
+            socket.SOL_SOCKET,
+            socket.SO_REUSEADDR,
+            1
+        )
 
-print("Connected by:", client_address)
+        server_socket.bind((HOST, port))
+        server_socket.listen(5)
+        server_socket.setblocking(False)
 
-username = None
-connected = True
+        server_sockets.append(server_socket)
 
-while connected:
+        print("Listening on test port", port)
 
-    try:
-        data = client_socket.recv(1024)
+    print()
+    print("Test server is running.")
+    print("Open test ports:", PORTS)
+    print("Press Ctrl+C to stop the server.")
+    print()
 
-        if not data:
-            print("Client disconnected unexpectedly")
-            break
+    while True:
 
-        message = data.decode()
+        readable, _, _ = select.select(
+            server_sockets,
+            [],
+            [],
+            1
+        )
 
-        print("Received:", message)
+        for server_socket in readable:
 
-        if "|" not in message:
-            client_socket.send(
-                "ERROR|Invalid command format".encode()
-            )
-            continue
+            client_socket = None
 
-        command, content = message.split("|", 1)
-
-        if command == "HELLO":
-
-            if content == "":
-                client_socket.send(
-                    "ERROR|Username required".encode()
-                )
-            else:
-                username = content
-                print("Username:", username)
-
-                client_socket.send(
-                    "OK|Hello ".encode() + username.encode()
+            try:
+                client_socket, client_address = (
+                    server_socket.accept()
                 )
 
-        elif command == "MSG": 
+                port = server_socket.getsockname()[1]
 
-            if username is None:
-                client_socket.send(
-                    "ERROR|HELLO required first".encode()
+                print(
+                    "Connection received on port",
+                    port
                 )
 
-            elif content == "":
-                client_socket.send(
-                    "ERROR|Message cannot be empty".encode()
-                )
+                client_socket.settimeout(0.5)
 
-            elif len(content) > 200:
-                client_socket.send(
-                    "ERROR|Message too long".encode()
-                )
+                try:
+                    # Receive data if the scanner sends any,
+                    # but do not display Nmap probe data.
+                    client_socket.recv(1024)
 
-            else:
-                print(username + " says:", content)
+                except socket.timeout:
+                    pass
 
-                client_socket.send(
-                    ("OK|Message received from " + username).encode()
-                )
+                except ConnectionResetError:
+                    pass
 
-        elif command == "EXIT":
+            except OSError:
+                pass
 
-            client_socket.send(
-                "OK|Goodbye".encode()
-            )
-
-            connected = False
-
-        else:
-            client_socket.send(
-                "ERROR|Unknown command".encode()
-            )
-
-    except ConnectionResetError:
-        print("Connection reset by client")
-        break
-
-client_socket.close()
-server_socket.close()
-
-print("Server closed")
+            finally:
+                if client_socket is not None:
+                    client_socket.close()
 
 
-print("You can now send messages.")
-print("Type EXIT to disconnect.")
+except KeyboardInterrupt:
+    print()
+    print("Stopping test server...")
 
 
-while True:
-    message = input("> ")
+finally:
+    for server_socket in server_sockets:
+        server_socket.close()
 
-    if message.upper() == "EXIT":
-        client.send("EXIT".encode())
-        break
-
-    client.send(("MSG|" + message).encode())
-
-
-client.close()
-
-print("Disconnected from server.")
+    print("Server closed.")
