@@ -1,0 +1,5 @@
+method,endpoint,input,status_code,response_length,content_type,server,error
+GET,/,null,200,9984,text/html; charset=UTF-8,,
+GET,/rest/products/search,"{""q"": ""apple""}",200,1617,application/json; charset=utf-8,,
+GET,/rest/products/search,"{""q"": ""banana""}",200,504,application/json; charset=utf-8,,
+POST,/rest/products/search,"{""q"": ""apple""}",500,2442,text/html; charset=utf-8,,
